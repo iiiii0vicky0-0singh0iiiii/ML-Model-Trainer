@@ -198,15 +198,45 @@ if uploaded_file is not None:
 
         st.pyplot(fig3)
 
-        # ---------------- TARGET COLUMN ----------------
+     
+# ---------------- AUTOMATIC TARGET DETECTION ----------------
 
-        st.subheader("Select Target Column")
+possible_targets = []
 
-        target_column = st.selectbox(
-            "Target Column",
-            df.columns,
-            key="target"
-        )
+for col in df.columns:
+
+    unique_values = df[col].nunique()
+
+    # Good classification targets
+    if 2 <= unique_values <= 20:
+
+        possible_targets.append(col)
+
+# If no target found
+if len(possible_targets) == 0:
+
+    st.error(
+        "No valid target column found."
+    )
+
+    st.write(
+        "Target column should contain "
+        "2 or more classes."
+    )
+
+    st.stop()
+
+# Select target automatically
+target_column = st.selectbox(
+    "Select Target Column",
+    possible_targets
+)
+
+st.success(
+    f"Suggested Target Columns: {possible_targets}"
+)
+
+
 
         # ---------------- FEATURES ----------------
 
