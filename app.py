@@ -34,7 +34,7 @@ st.set_page_config(
 )
 
 st.title("AutoML Studio")
-st.write("Machine Learning Dashboard")
+st.write("Machine Learning Training Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
 
@@ -64,50 +64,40 @@ if uploaded_file is not None:
         # Fill missing values
         df = df.fillna(0)
 
-        # ---------------- ENCODE CATEGORICAL ----------------
+        # ---------------- ENCODE CATEGORICAL DATA ----------------
 
         label_encoders = {}
 
         for col in df.columns:
 
-            try:
+            if df[col].dtype == 'object':
 
-                if df[col].dtype == 'object':
+                le = LabelEncoder()
 
-                    le = LabelEncoder()
+                df[col] = le.fit_transform(
+                    df[col].astype(str)
+                )
 
-                    df[col] = le.fit_transform(
-                        df[col].astype(str)
-                    )
-
-                    label_encoders[col] = le
-
-            except:
-                pass
+                label_encoders[col] = le
 
         # ---------------- CONVERT TO NUMERIC ----------------
 
         for col in df.columns:
 
-            try:
-
-                df[col] = pd.to_numeric(
-                    df[col],
-                    errors='coerce'
-                )
-
-            except:
-                pass
+            df[col] = pd.to_numeric(
+                df[col],
+                errors='coerce'
+            )
 
         # Replace NaN values
         df = df.fillna(0)
 
-        # Keep numeric columns only
+        # Keep only numeric columns
         df = df.select_dtypes(
             include=[np.number]
         )
 
-        # ---------------- DATASET CHECK ----------------
+        # ---------------- CHECK DATASET ----------------
 
         if len(df.columns) < 2:
 
@@ -116,6 +106,8 @@ if uploaded_file is not None:
             )
 
             st.stop()
+
+        # ---------------- PROCESSED DATA ----------------
 
         st.subheader("Processed Dataset")
         st.dataframe(df.head())
@@ -136,12 +128,12 @@ if uploaded_file is not None:
 
         st.write(df.describe())
 
-        # ---------------- DISTRIBUTION PLOT ----------------
+        # ---------------- BAR GRAPH ----------------
 
         st.subheader("Column Distribution")
 
         visual_col = st.selectbox(
-            "Select Column for Distribution",
+            "Select Column",
             df.columns
         )
 
@@ -198,72 +190,50 @@ if uploaded_file is not None:
 
         st.pyplot(fig3)
 
-     
-# ---------------- AUTOMATIC TARGET DETECTION ----------------
+        # ---------------- TARGET DETECTION ----------------
 
-possible_targets = []
+        possible_targets = []
 
-for col in df.columns:
+        for col in df.columns:
 
-    unique_values = df[col].nunique()
+            unique_values = df[col].nunique()
 
-    # Good classification targets
-    if 2 <= unique_values <= 20:
+            # Good classification target
+            if 2 <= unique_values <= 20:
 
-        possible_targets.append(col)
+                possible_targets.append(col)
 
-# If no target found
-if len(possible_targets) == 0:
+        # No valid target
+        if len(possible_targets) == 0:
 
-    st.error(
-        "No valid target column found."
-    )
+            st.error(
+                "No valid target column found."
+            )
 
-    st.write(
-        "Target column should contain "
-        "2 or more classes."
-    )
+            st.write(
+                "Target column should contain "
+                "2 to 20 unique classes."
+            )
 
-    st.stop()
+            st.stop()
 
-# Select target automatically
-target_column = st.selectbox(
-    "Select Target Column",
-    possible_targets
-)
+        # ---------------- TARGET SELECTION ----------------
 
-st.success(
-    f"Suggested Target Columns: {possible_targets}"
-)
+        st.subheader("Select Target Column")
 
+        target_column = st.selectbox(
+            "Target Column",
+            possible_targets
+        )
 
+        st.success(
+            f"Suggested Target Columns: {possible_targets}"
+        )
 
         # ---------------- FEATURES ----------------
 
         X = df.drop(columns=[target_column])
         y = df[target_column]
-
-        # ---------------- TARGET VALIDATION ----------------
-
-        unique_classes = y.nunique()
-
-        st.write(
-            "Number of Classes:",
-            unique_classes
-        )
-
-        if unique_classes < 2:
-
-            st.error(
-                "Selected target column has only one class. "
-                "Please choose another target column."
-            )
-
-            st.write("Unique Values:")
-
-            st.write(y.unique())
-
-            st.stop()
 
         # ---------------- FEATURE SCALING ----------------
 
@@ -352,8 +322,7 @@ st.success(
             if cv_value < 2:
 
                 st.warning(
-                    "Dataset too small for tuning. "
-                    "Training without GridSearchCV."
+                    "Dataset too small for GridSearchCV."
                 )
 
                 model.fit(X_train, y_train)
@@ -399,7 +368,7 @@ st.success(
                 f"{accuracy:.2f}"
             )
 
-            # ---------------- REPORT ----------------
+            # ---------------- CLASSIFICATION REPORT ----------------
 
             st.subheader("Classification Report")
 
