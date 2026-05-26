@@ -266,7 +266,7 @@ if uploaded_file is not None:
                 model = LogisticRegression(
                     max_iter=3000,
                     solver='lbfgs',
-                    multi_class='auto'
+                    
                 )
 
                 params = {
