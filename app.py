@@ -1,7 +1,9 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
+
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.model_selection import (
     train_test_split,
@@ -32,7 +34,7 @@ st.set_page_config(
 )
 
 st.title("AutoML Studio")
-st.write("Train and Test Machine Learning Models")
+st.write("Machine Learning Model Training Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
 
@@ -54,7 +56,7 @@ if uploaded_file is not None:
 
         st.write("Dataset Shape:", df.shape)
 
-        # ---------------- CLEAN DATA ----------------
+        # ---------------- DATA CLEANING ----------------
 
         # Remove empty columns
         df = df.dropna(axis=1, how='all')
@@ -62,7 +64,7 @@ if uploaded_file is not None:
         # Fill missing values
         df = df.fillna(0)
 
-        # ---------------- ENCODE CATEGORICAL ----------------
+        # ---------------- ENCODE CATEGORICAL DATA ----------------
 
         label_encoders = {}
 
@@ -83,7 +85,7 @@ if uploaded_file is not None:
             except:
                 pass
 
-        # ---------------- FORCE NUMERIC ----------------
+        # ---------------- CONVERT TO NUMERIC ----------------
 
         for col in df.columns:
 
@@ -100,12 +102,12 @@ if uploaded_file is not None:
         # Replace NaN values
         df = df.fillna(0)
 
-        # Keep only numeric columns
+        # Keep numeric columns only
         df = df.select_dtypes(
             include=[np.number]
         )
 
-        # ---------------- DATA CHECK ----------------
+        # ---------------- CHECK DATASET ----------------
 
         if len(df.columns) < 2:
 
@@ -118,11 +120,82 @@ if uploaded_file is not None:
         st.subheader("Processed Dataset")
         st.dataframe(df.head())
 
+        # ---------------- VISUALIZATION ----------------
+
+        st.subheader("Dataset Statistics")
+
+        st.write(df.describe())
+
+        # ---------------- CLASS DISTRIBUTION ----------------
+
+        st.subheader("Column Distribution")
+
+        visual_col = st.selectbox(
+            "Select Column",
+            df.columns
+        )
+
+        fig1, ax1 = plt.subplots()
+
+        df[visual_col].value_counts().plot(
+            kind='bar',
+            ax=ax1
+        )
+
+        ax1.set_title(
+            f"Distribution of {visual_col}"
+        )
+
+        st.pyplot(fig1)
+
+        # ---------------- HEATMAP ----------------
+
+        st.subheader("Correlation Heatmap")
+
+        corr = df.corr()
+
+        fig2, ax2 = plt.subplots(
+            figsize=(12, 8)
+        )
+
+        sns.heatmap(
+            corr,
+            annot=True,
+            cmap='coolwarm',
+            ax=ax2
+        )
+
+        st.pyplot(fig2)
+
+        # ---------------- HISTOGRAM ----------------
+
+        st.subheader("Feature Histogram")
+
+        hist_col = st.selectbox(
+            "Select Feature for Histogram",
+            df.columns,
+            key="histogram"
+        )
+
+        fig3, ax3 = plt.subplots()
+
+        ax3.hist(
+            df[hist_col],
+            bins=20
+        )
+
+        ax3.set_title(hist_col)
+
+        st.pyplot(fig3)
+
         # ---------------- TARGET COLUMN ----------------
 
+        st.subheader("Select Target Column")
+
         target_column = st.selectbox(
-            "Select Target Column",
-            df.columns
+            "Target Column",
+            df.columns,
+            key="target"
         )
 
         # ---------------- FEATURES ----------------
@@ -146,14 +219,12 @@ if uploaded_file is not None:
 
         X_scaled = scaler.fit_transform(X)
 
-        # ---------------- TEST SIZE ----------------
+        # ---------------- SMART SPLIT ----------------
 
-        test_size = st.slider(
-            "Select Test Size",
-            0.1,
-            0.5,
-            0.2
-        )
+        if len(df) < 50:
+            test_size = 0.1
+        else:
+            test_size = 0.2
 
         X_train, X_test, y_train, y_test = train_test_split(
             X_scaled,
@@ -163,6 +234,8 @@ if uploaded_file is not None:
         )
 
         # ---------------- MODEL SELECTION ----------------
+
+        st.subheader("Select Machine Learning Model")
 
         model_name = st.selectbox(
             "Choose Model",
@@ -191,8 +264,9 @@ if uploaded_file is not None:
             elif model_name == "Logistic Regression":
 
                 model = LogisticRegression(
-                    max_iter=2000,
-                    solver='liblinear'
+                    max_iter=3000,
+                    solver='lbfgs',
+                    multi_class='auto'
                 )
 
                 params = {
@@ -216,17 +290,19 @@ if uploaded_file is not None:
                     'max_depth': [5, 10]
                 }
 
-            # ---------------- SAFE CV VALUE ----------------
+            # ---------------- SAFE CV ----------------
 
             min_class_count = y.value_counts().min()
 
             cv_value = min(2, min_class_count)
 
+            # ---------------- SMALL DATASET ----------------
+
             if cv_value < 2:
 
                 st.warning(
-                    "Dataset too small for tuning. "
-                    "Training without GridSearchCV."
+                    "Dataset too small for GridSearchCV. "
+                    "Training normal model."
                 )
 
                 model.fit(X_train, y_train)
@@ -249,6 +325,7 @@ if uploaded_file is not None:
                 best_model = grid.best_estimator_
 
                 st.subheader("Best Parameters")
+
                 st.write(grid.best_params_)
 
             # ---------------- PREDICTION ----------------
@@ -262,7 +339,9 @@ if uploaded_file is not None:
                 y_pred
             )
 
-            st.success("Model Trained Successfully")
+            st.success(
+                "Model Trained Successfully"
+            )
 
             st.metric(
                 "Accuracy",
