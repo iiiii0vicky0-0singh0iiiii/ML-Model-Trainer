@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -21,6 +22,10 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
+from sklearn.feature_selection import (
+    VarianceThreshold
+)
+
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -34,7 +39,7 @@ st.set_page_config(
 )
 
 st.title("AutoML Studio")
-st.write("Machine Learning Training Dashboard")
+st.write("Advanced Machine Learning Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
 
@@ -58,13 +63,11 @@ if uploaded_file is not None:
 
         # ---------------- CLEAN DATA ----------------
 
-        # Remove empty columns
         df = df.dropna(axis=1, how='all')
 
-        # Fill missing values
         df = df.fillna(0)
 
-        # ---------------- ENCODE CATEGORICAL DATA ----------------
+        # ---------------- ENCODE CATEGORICAL ----------------
 
         label_encoders = {}
 
@@ -80,7 +83,7 @@ if uploaded_file is not None:
 
                 label_encoders[col] = le
 
-        # ---------------- CONVERT TO NUMERIC ----------------
+        # ---------------- NUMERIC CONVERSION ----------------
 
         for col in df.columns:
 
@@ -89,10 +92,8 @@ if uploaded_file is not None:
                 errors='coerce'
             )
 
-        # Replace NaN values
         df = df.fillna(0)
 
-        # Keep only numeric columns
         df = df.select_dtypes(
             include=[np.number]
         )
@@ -102,12 +103,10 @@ if uploaded_file is not None:
         if len(df.columns) < 2:
 
             st.error(
-                "Dataset must contain at least 2 valid columns."
+                "Dataset must contain at least 2 columns."
             )
 
             st.stop()
-
-        # ---------------- PROCESSED DATA ----------------
 
         st.subheader("Processed Dataset")
         st.dataframe(df.head())
@@ -122,13 +121,13 @@ if uploaded_file is not None:
                 f"{col} : {df[col].nunique()} unique values"
             )
 
-        # ---------------- VISUALIZATION ----------------
+        # ---------------- STATISTICS ----------------
 
         st.subheader("Dataset Statistics")
 
         st.write(df.describe())
 
-        # ---------------- BAR GRAPH ----------------
+        # ---------------- VISUALIZATION ----------------
 
         st.subheader("Column Distribution")
 
@@ -144,24 +143,18 @@ if uploaded_file is not None:
             ax=ax1
         )
 
-        ax1.set_title(
-            f"Distribution of {visual_col}"
-        )
-
         st.pyplot(fig1)
 
         # ---------------- HEATMAP ----------------
 
         st.subheader("Correlation Heatmap")
 
-        corr = df.corr()
-
         fig2, ax2 = plt.subplots(
             figsize=(12, 8)
         )
 
         sns.heatmap(
-            corr,
+            df.corr(),
             annot=True,
             cmap='coolwarm',
             ax=ax2
@@ -186,8 +179,6 @@ if uploaded_file is not None:
             bins=20
         )
 
-        ax3.set_title(hist_col)
-
         st.pyplot(fig3)
 
         # ---------------- TARGET DETECTION ----------------
@@ -198,26 +189,17 @@ if uploaded_file is not None:
 
             unique_values = df[col].nunique()
 
-            # Good classification target
             if 2 <= unique_values <= 20:
 
                 possible_targets.append(col)
 
-        # No valid target
         if len(possible_targets) == 0:
 
             st.error(
                 "No valid target column found."
             )
 
-            st.write(
-                "Target column should contain "
-                "2 to 20 unique classes."
-            )
-
             st.stop()
-
-        # ---------------- TARGET SELECTION ----------------
 
         st.subheader("Select Target Column")
 
@@ -226,14 +208,19 @@ if uploaded_file is not None:
             possible_targets
         )
 
-        st.success(
-            f"Suggested Target Columns: {possible_targets}"
-        )
-
         # ---------------- FEATURES ----------------
 
         X = df.drop(columns=[target_column])
+
         y = df[target_column]
+
+        # ---------------- FEATURE SELECTION ----------------
+
+        selector = VarianceThreshold(
+            threshold=0
+        )
+
+        X = selector.fit_transform(X)
 
         # ---------------- FEATURE SCALING ----------------
 
@@ -241,23 +228,26 @@ if uploaded_file is not None:
 
         X_scaled = scaler.fit_transform(X)
 
-        # ---------------- SMART SPLIT ----------------
+        # ---------------- SMART TEST SIZE ----------------
 
         if len(df) < 50:
             test_size = 0.1
         else:
             test_size = 0.2
 
+        # ---------------- TRAIN TEST SPLIT ----------------
+
         X_train, X_test, y_train, y_test = train_test_split(
             X_scaled,
             y,
             test_size=test_size,
-            random_state=42
+            random_state=42,
+            stratify=y
         )
 
         # ---------------- MODEL SELECTION ----------------
 
-        st.subheader("Select Machine Learning Model")
+        st.subheader("Select Model")
 
         model_name = st.selectbox(
             "Choose Model",
@@ -269,6 +259,51 @@ if uploaded_file is not None:
             ]
         )
 
+        # ---------------- MODEL PARAMETERS ----------------
+
+        if model_name == "KNN":
+
+            k_value = st.slider(
+                "Select K Value",
+                1,
+                15,
+                5
+            )
+
+        elif model_name == "Logistic Regression":
+
+            c_value = st.slider(
+                "Select C Value",
+                0.01,
+                10.0,
+                1.0
+            )
+
+        elif model_name == "Decision Tree":
+
+            max_depth = st.slider(
+                "Select Max Depth",
+                1,
+                20,
+                5
+            )
+
+        elif model_name == "Random Forest":
+
+            n_estimators = st.slider(
+                "Number of Trees",
+                50,
+                500,
+                100
+            )
+
+            rf_depth = st.slider(
+                "Max Depth",
+                1,
+                20,
+                10
+            )
+
         # ---------------- TRAIN BUTTON ----------------
 
         if st.button("Train Model"):
@@ -277,80 +312,40 @@ if uploaded_file is not None:
 
             if model_name == "KNN":
 
-                model = KNeighborsClassifier()
-
-                params = {
-                    'n_neighbors': [3, 5, 7]
-                }
+                model = KNeighborsClassifier(
+                    n_neighbors=k_value
+                )
 
             elif model_name == "Logistic Regression":
 
                 model = LogisticRegression(
-                    max_iter=3000,
+                    C=c_value,
+                    max_iter=5000,
                     solver='lbfgs'
                 )
 
-                params = {
-                    'C': [0.1, 1, 10]
-                }
-
             elif model_name == "Decision Tree":
 
-                model = DecisionTreeClassifier()
-
-                params = {
-                    'max_depth': [3, 5, 10]
-                }
+                model = DecisionTreeClassifier(
+                    max_depth=max_depth,
+                    random_state=42
+                )
 
             elif model_name == "Random Forest":
 
-                model = RandomForestClassifier()
-
-                params = {
-                    'n_estimators': [50, 100],
-                    'max_depth': [5, 10]
-                }
-
-            # ---------------- SAFE CV ----------------
-
-            min_class_count = y.value_counts().min()
-
-            cv_value = min(2, min_class_count)
-
-            # ---------------- SMALL DATASET ----------------
-
-            if cv_value < 2:
-
-                st.warning(
-                    "Dataset too small for GridSearchCV."
+                model = RandomForestClassifier(
+                    n_estimators=n_estimators,
+                    max_depth=rf_depth,
+                    random_state=42
                 )
 
-                model.fit(X_train, y_train)
+            # ---------------- TRAIN ----------------
 
-                best_model = model
-
-            else:
-
-                # ---------------- GRID SEARCH ----------------
-
-                grid = GridSearchCV(
-                    estimator=model,
-                    param_grid=params,
-                    cv=cv_value,
-                    scoring='accuracy'
-                )
-
-                grid.fit(X_train, y_train)
-
-                best_model = grid.best_estimator_
-
-                st.subheader("Best Parameters")
-
-                st.write(grid.best_params_)
+            model.fit(X_train, y_train)
 
             # ---------------- PREDICTION ----------------
 
-            y_pred = best_model.predict(X_test)
+            y_pred = model.predict(X_test)
 
             # ---------------- ACCURACY ----------------
 
@@ -368,7 +363,7 @@ if uploaded_file is not None:
                 f"{accuracy:.2f}"
             )
 
-            # ---------------- CLASSIFICATION REPORT ----------------
+            # ---------------- REPORT ----------------
 
             st.subheader("Classification Report")
 
