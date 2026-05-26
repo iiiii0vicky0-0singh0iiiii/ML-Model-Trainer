@@ -1,4 +1,4 @@
-```python
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -276,4 +276,3 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"Error: {e}")
-```
