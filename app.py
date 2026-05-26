@@ -1,4 +1,4 @@
-
+```python id="7kzv9m"
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -68,31 +68,52 @@ if uploaded_file is not None:
 
         for col in df.columns:
 
-            if df[col].dtype == 'object':
+            try:
 
-                le = LabelEncoder()
+                if df[col].dtype == 'object':
 
-                df[col] = le.fit_transform(
-                    df[col].astype(str)
-                )
+                    le = LabelEncoder()
 
-                label_encoders[col] = le
+                    df[col] = le.fit_transform(
+                        df[col].astype(str)
+                    )
 
-        # ---------------- CONVERT TO NUMERIC ----------------
+                    label_encoders[col] = le
+
+            except:
+                pass
+
+        # ---------------- FORCE NUMERIC ----------------
 
         for col in df.columns:
 
-            df[col] = pd.to_numeric(
-                df[col],
-                errors='coerce'
-            )
+            try:
 
+                df[col] = pd.to_numeric(
+                    df[col],
+                    errors='coerce'
+                )
+
+            except:
+                pass
+
+        # Replace NaN values
         df = df.fillna(0)
 
         # Keep only numeric columns
         df = df.select_dtypes(
             include=[np.number]
         )
+
+        # ---------------- DATA CHECK ----------------
+
+        if len(df.columns) < 2:
+
+            st.error(
+                "Dataset must contain at least 2 columns."
+            )
+
+            st.stop()
 
         st.subheader("Processed Dataset")
         st.dataframe(df.head())
@@ -108,6 +129,16 @@ if uploaded_file is not None:
 
         X = df.drop(columns=[target_column])
         y = df[target_column]
+
+        # ---------------- TARGET VALIDATION ----------------
+
+        if y.nunique() < 2:
+
+            st.error(
+                "Target column must contain at least 2 classes."
+            )
+
+            st.stop()
 
         # ---------------- FEATURE SCALING ----------------
 
@@ -147,14 +178,14 @@ if uploaded_file is not None:
 
         if st.button("Train Model"):
 
-            # ---------------- MODEL + TUNING ----------------
+            # ---------------- MODEL + PARAMETERS ----------------
 
             if model_name == "KNN":
 
                 model = KNeighborsClassifier()
 
                 params = {
-                    'n_neighbors': [3, 5, 7, 9]
+                    'n_neighbors': [3, 5, 7]
                 }
 
             elif model_name == "Logistic Regression":
@@ -165,7 +196,7 @@ if uploaded_file is not None:
                 )
 
                 params = {
-                    'C': [0.01, 0.1, 1, 10]
+                    'C': [0.1, 1, 10]
                 }
 
             elif model_name == "Decision Tree":
@@ -173,7 +204,7 @@ if uploaded_file is not None:
                 model = DecisionTreeClassifier()
 
                 params = {
-                    'max_depth': [3, 5, 10, None]
+                    'max_depth': [3, 5, 10]
                 }
 
             elif model_name == "Random Forest":
@@ -182,27 +213,49 @@ if uploaded_file is not None:
 
                 params = {
                     'n_estimators': [50, 100],
-                    'max_depth': [5, 10, None]
+                    'max_depth': [5, 10]
                 }
 
-            # ---------------- GRID SEARCH ----------------
+            # ---------------- SAFE CV VALUE ----------------
 
-            grid = GridSearchCV(
-                model,
-                params,
-                cv=3,
-                scoring='accuracy'
-            )
+            min_class_count = y.value_counts().min()
 
-            grid.fit(X_train, y_train)
+            cv_value = min(2, min_class_count)
 
-            best_model = grid.best_estimator_
+            if cv_value < 2:
+
+                st.warning(
+                    "Dataset too small for tuning. "
+                    "Training without GridSearchCV."
+                )
+
+                model.fit(X_train, y_train)
+
+                best_model = model
+
+            else:
+
+                # ---------------- GRID SEARCH ----------------
+
+                grid = GridSearchCV(
+                    estimator=model,
+                    param_grid=params,
+                    cv=cv_value,
+                    scoring='accuracy'
+                )
+
+                grid.fit(X_train, y_train)
+
+                best_model = grid.best_estimator_
+
+                st.subheader("Best Parameters")
+                st.write(grid.best_params_)
 
             # ---------------- PREDICTION ----------------
 
             y_pred = best_model.predict(X_test)
 
-            # ---------------- METRICS ----------------
+            # ---------------- ACCURACY ----------------
 
             accuracy = accuracy_score(
                 y_test,
@@ -215,12 +268,6 @@ if uploaded_file is not None:
                 "Accuracy",
                 f"{accuracy:.2f}"
             )
-
-            # ---------------- BEST PARAMETERS ----------------
-
-            st.subheader("Best Parameters")
-
-            st.write(grid.best_params_)
 
             # ---------------- CLASSIFICATION REPORT ----------------
 
@@ -245,7 +292,9 @@ if uploaded_file is not None:
                 y_pred
             )
 
-            st.write(cm)
+            cm_df = pd.DataFrame(cm)
+
+            st.dataframe(cm_df)
 
             # ---------------- PREDICTIONS ----------------
 
@@ -267,12 +316,13 @@ if uploaded_file is not None:
             ).encode('utf-8')
 
             st.download_button(
-                "Download Predictions CSV",
-                csv,
-                "predictions.csv",
-                "text/csv"
+                label="Download Predictions CSV",
+                data=csv,
+                file_name="predictions.csv",
+                mime="text/csv"
             )
 
     except Exception as e:
 
         st.error(f"Error: {e}")
+```
