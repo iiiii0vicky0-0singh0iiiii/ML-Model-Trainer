@@ -6,10 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.model_selection import (
-    train_test_split,
-    GridSearchCV
-)
+from sklearn.model_selection import train_test_split
 
 from sklearn.preprocessing import (
     LabelEncoder,
@@ -63,11 +60,13 @@ if uploaded_file is not None:
 
         # ---------------- CLEAN DATA ----------------
 
+        # Remove empty columns
         df = df.dropna(axis=1, how='all')
 
+        # Fill missing values
         df = df.fillna(0)
 
-        # ---------------- ENCODE CATEGORICAL ----------------
+        # ---------------- ENCODE CATEGORICAL DATA ----------------
 
         label_encoders = {}
 
@@ -83,7 +82,7 @@ if uploaded_file is not None:
 
                 label_encoders[col] = le
 
-        # ---------------- NUMERIC CONVERSION ----------------
+        # ---------------- CONVERT TO NUMERIC ----------------
 
         for col in df.columns:
 
@@ -94,6 +93,7 @@ if uploaded_file is not None:
 
         df = df.fillna(0)
 
+        # Keep only numeric columns
         df = df.select_dtypes(
             include=[np.number]
         )
@@ -103,15 +103,17 @@ if uploaded_file is not None:
         if len(df.columns) < 2:
 
             st.error(
-                "Dataset must contain at least 2 columns."
+                "Dataset must contain at least 2 valid columns."
             )
 
             st.stop()
 
+        # ---------------- PROCESSED DATA ----------------
+
         st.subheader("Processed Dataset")
         st.dataframe(df.head())
 
-        # ---------------- COLUMN INFO ----------------
+        # ---------------- COLUMN INFORMATION ----------------
 
         st.subheader("Column Information")
 
@@ -121,13 +123,13 @@ if uploaded_file is not None:
                 f"{col} : {df[col].nunique()} unique values"
             )
 
-        # ---------------- STATISTICS ----------------
+        # ---------------- DATASET STATISTICS ----------------
 
         st.subheader("Dataset Statistics")
 
         st.write(df.describe())
 
-        # ---------------- VISUALIZATION ----------------
+        # ---------------- BAR GRAPH ----------------
 
         st.subheader("Column Distribution")
 
@@ -141,6 +143,10 @@ if uploaded_file is not None:
         df[visual_col].value_counts().plot(
             kind='bar',
             ax=ax1
+        )
+
+        ax1.set_title(
+            f"Distribution of {visual_col}"
         )
 
         st.pyplot(fig1)
@@ -179,33 +185,36 @@ if uploaded_file is not None:
             bins=20
         )
 
+        ax3.set_title(hist_col)
+
         st.pyplot(fig3)
 
-        # ---------------- TARGET DETECTION ----------------
-
-        possible_targets = []
-
-        for col in df.columns:
-
-            unique_values = df[col].nunique()
-
-            if 2 <= unique_values <= 20:
-
-                possible_targets.append(col)
-
-        if len(possible_targets) == 0:
-
-            st.error(
-                "No valid target column found."
-            )
-
-            st.stop()
+        # ---------------- TARGET COLUMN ----------------
 
         st.subheader("Select Target Column")
 
+        st.write(
+            "Choose the correct output column "
+            "for model training."
+        )
+
         target_column = st.selectbox(
             "Target Column",
-            possible_targets
+            df.columns
+        )
+
+        st.success(
+            f"Selected Target Column: {target_column}"
+        )
+
+        st.write(
+            "Unique Classes:",
+            df[target_column].nunique()
+        )
+
+        st.write(
+            "Unique Values:",
+            df[target_column].unique()
         )
 
         # ---------------- FEATURES ----------------
@@ -213,6 +222,16 @@ if uploaded_file is not None:
         X = df.drop(columns=[target_column])
 
         y = df[target_column]
+
+        # ---------------- TARGET VALIDATION ----------------
+
+        if y.nunique() < 2:
+
+            st.error(
+                "Target column must contain at least 2 classes."
+            )
+
+            st.stop()
 
         # ---------------- FEATURE SELECTION ----------------
 
@@ -228,12 +247,14 @@ if uploaded_file is not None:
 
         X_scaled = scaler.fit_transform(X)
 
-        # ---------------- SMART TEST SIZE ----------------
+        # ---------------- TEST SIZE ----------------
 
-        if len(df) < 50:
-            test_size = 0.1
-        else:
-            test_size = 0.2
+        test_size = st.slider(
+            "Select Test Size",
+            0.1,
+            0.5,
+            0.2
+        )
 
         # ---------------- TRAIN TEST SPLIT ----------------
 
@@ -247,7 +268,7 @@ if uploaded_file is not None:
 
         # ---------------- MODEL SELECTION ----------------
 
-        st.subheader("Select Model")
+        st.subheader("Select Machine Learning Model")
 
         model_name = st.selectbox(
             "Choose Model",
@@ -259,7 +280,7 @@ if uploaded_file is not None:
             ]
         )
 
-        # ---------------- MODEL PARAMETERS ----------------
+        # ---------------- PARAMETERS ----------------
 
         if model_name == "KNN":
 
@@ -298,7 +319,7 @@ if uploaded_file is not None:
             )
 
             rf_depth = st.slider(
-                "Max Depth",
+                "Random Forest Max Depth",
                 1,
                 20,
                 10
@@ -339,7 +360,7 @@ if uploaded_file is not None:
                     random_state=42
                 )
 
-            # ---------------- TRAIN ----------------
+            # ---------------- TRAIN MODEL ----------------
 
             model.fit(X_train, y_train)
 
@@ -363,7 +384,7 @@ if uploaded_file is not None:
                 f"{accuracy:.2f}"
             )
 
-            # ---------------- REPORT ----------------
+            # ---------------- CLASSIFICATION REPORT ----------------
 
             st.subheader("Classification Report")
 
@@ -390,7 +411,7 @@ if uploaded_file is not None:
 
             st.dataframe(cm_df)
 
-            # ---------------- PREDICTIONS ----------------
+            # ---------------- PREDICTION RESULTS ----------------
 
             st.subheader("Prediction Results")
 
