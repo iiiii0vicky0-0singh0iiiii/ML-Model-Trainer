@@ -34,7 +34,7 @@ st.set_page_config(
 )
 
 st.title("AutoML Studio")
-st.write("Machine Learning Model Training Dashboard")
+st.write("Machine Learning Dashboard")
 
 # ---------------- FILE UPLOAD ----------------
 
@@ -56,7 +56,7 @@ if uploaded_file is not None:
 
         st.write("Dataset Shape:", df.shape)
 
-        # ---------------- DATA CLEANING ----------------
+        # ---------------- CLEAN DATA ----------------
 
         # Remove empty columns
         df = df.dropna(axis=1, how='all')
@@ -64,7 +64,7 @@ if uploaded_file is not None:
         # Fill missing values
         df = df.fillna(0)
 
-        # ---------------- ENCODE CATEGORICAL DATA ----------------
+        # ---------------- ENCODE CATEGORICAL ----------------
 
         label_encoders = {}
 
@@ -107,12 +107,12 @@ if uploaded_file is not None:
             include=[np.number]
         )
 
-        # ---------------- CHECK DATASET ----------------
+        # ---------------- DATASET CHECK ----------------
 
         if len(df.columns) < 2:
 
             st.error(
-                "Dataset must contain at least 2 columns."
+                "Dataset must contain at least 2 valid columns."
             )
 
             st.stop()
@@ -120,18 +120,28 @@ if uploaded_file is not None:
         st.subheader("Processed Dataset")
         st.dataframe(df.head())
 
+        # ---------------- COLUMN INFO ----------------
+
+        st.subheader("Column Information")
+
+        for col in df.columns:
+
+            st.write(
+                f"{col} : {df[col].nunique()} unique values"
+            )
+
         # ---------------- VISUALIZATION ----------------
 
         st.subheader("Dataset Statistics")
 
         st.write(df.describe())
 
-        # ---------------- CLASS DISTRIBUTION ----------------
+        # ---------------- DISTRIBUTION PLOT ----------------
 
         st.subheader("Column Distribution")
 
         visual_col = st.selectbox(
-            "Select Column",
+            "Select Column for Distribution",
             df.columns
         )
 
@@ -172,9 +182,9 @@ if uploaded_file is not None:
         st.subheader("Feature Histogram")
 
         hist_col = st.selectbox(
-            "Select Feature for Histogram",
+            "Select Feature",
             df.columns,
-            key="histogram"
+            key="hist"
         )
 
         fig3, ax3 = plt.subplots()
@@ -205,11 +215,23 @@ if uploaded_file is not None:
 
         # ---------------- TARGET VALIDATION ----------------
 
-        if y.nunique() < 2:
+        unique_classes = y.nunique()
+
+        st.write(
+            "Number of Classes:",
+            unique_classes
+        )
+
+        if unique_classes < 2:
 
             st.error(
-                "Target column must contain at least 2 classes."
+                "Selected target column has only one class. "
+                "Please choose another target column."
             )
+
+            st.write("Unique Values:")
+
+            st.write(y.unique())
 
             st.stop()
 
@@ -251,7 +273,7 @@ if uploaded_file is not None:
 
         if st.button("Train Model"):
 
-            # ---------------- MODEL + PARAMETERS ----------------
+            # ---------------- MODEL CONFIG ----------------
 
             if model_name == "KNN":
 
@@ -265,8 +287,7 @@ if uploaded_file is not None:
 
                 model = LogisticRegression(
                     max_iter=3000,
-                    solver='lbfgs',
-                    
+                    solver='lbfgs'
                 )
 
                 params = {
@@ -301,8 +322,8 @@ if uploaded_file is not None:
             if cv_value < 2:
 
                 st.warning(
-                    "Dataset too small for GridSearchCV. "
-                    "Training normal model."
+                    "Dataset too small for tuning. "
+                    "Training without GridSearchCV."
                 )
 
                 model.fit(X_train, y_train)
@@ -348,7 +369,7 @@ if uploaded_file is not None:
                 f"{accuracy:.2f}"
             )
 
-            # ---------------- CLASSIFICATION REPORT ----------------
+            # ---------------- REPORT ----------------
 
             st.subheader("Classification Report")
 
